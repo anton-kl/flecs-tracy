@@ -35,6 +35,10 @@ file(GLOB_RECURSE SRC src/*.c)
 
 set(FLECS_TARGETS "")
 
+find_package(Tracy CONFIG REQUIRED)
+option(TRACY_ENABLE "" OFF)
+get_target_property(tracy_include Tracy::TracyClient INTERFACE_INCLUDE_DIRECTORIES)
+
 macro(add_flecs_target TARGET CONFIG)
     add_library(${TARGET} ${CONFIG} ${INC} ${SRC})
     add_library(flecs::${TARGET} ALIAS ${TARGET})
@@ -43,7 +47,7 @@ macro(add_flecs_target TARGET CONFIG)
     target_default_compile_warnings_c(${TARGET})
 
     if(WIN32)
-        target_link_libraries(${TARGET} wsock32 ws2_32)
+        target_link_libraries(${TARGET} wsock32 ws2_32 $<$<BOOL:${TRACY_ENABLE}>:Tracy::TracyClient>)
     endif()
     if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(${TARGET} pthread)
@@ -55,7 +59,8 @@ macro(add_flecs_target TARGET CONFIG)
 
     target_include_directories(${TARGET} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+        $<$<NOT:$<BOOL:${TRACY_ENABLE}>>:${tracy_include}>)
 
     list(APPEND FLECS_TARGETS ${TARGET})
 endmacro()

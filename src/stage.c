@@ -16,6 +16,7 @@
  */
 
 #include "private_api.h"
+#include <tracy/TracyC.h>
 
 static
 ecs_cmd_t* flecs_cmd_alloc(
@@ -79,6 +80,7 @@ void flecs_stages_merge(
     ecs_world_t *world,
     bool force_merge)
 {
+    TracyCZoneN(ZONE, "flecs_stages_merge", true);
     bool is_stage = ecs_poly_is(world, ecs_stage_t);
     ecs_stage_t *stage = flecs_stage_from_world(&world);
 
@@ -107,11 +109,13 @@ void flecs_stages_merge(
          * if this is a forced merge (like when ecs_merge is called) */
         int32_t i, count = ecs_get_stage_count(world);
         for (i = 0; i < count; i ++) {
+            TracyCZoneN(ZONE, "merge", true);
             ecs_stage_t *s = (ecs_stage_t*)ecs_get_stage(world, i);
             ecs_poly_assert(s, ecs_stage_t);
             if (force_merge || s->auto_merge) {
                 flecs_defer_end(world, s);
             }
+            TracyCZoneEnd(ZONE);
         }
     }
 
@@ -129,6 +133,7 @@ void flecs_stages_merge(
     }
     
     ecs_log_pop_3();
+    TracyCZoneEnd(ZONE);
 }
 
 static

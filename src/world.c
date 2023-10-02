@@ -4,6 +4,8 @@
  */
 
 #include "private_api.h"
+#include <tracy/TracyC.h>
+
 
 /* Id flags */
 const ecs_id_t ECS_PAIR =                                          (1ull << 63);
@@ -2057,17 +2059,25 @@ void ecs_run_aperiodic(
     ecs_world_t *world,
     ecs_flags32_t flags)
 {
+    TracyCZoneN(ZONE, "ecs_run_aperiodic", true);
     ecs_poly_assert(world, ecs_world_t);
     
     if (!flags || (flags & EcsAperiodicEmptyTables)) {
+        TracyCZoneN(ZONE, "flecs_process_pending_tables", true);
         flecs_process_pending_tables(world);
+        TracyCZoneEnd(ZONE);
     }
     if ((flags & EcsAperiodicEmptyQueries)) {
+        TracyCZoneN(ZONE, "flecs_process_empty_queries", true);
         flecs_process_empty_queries(world);
+        TracyCZoneEnd(ZONE);
     }
     if (!flags || (flags & EcsAperiodicComponentMonitors)) {
+        TracyCZoneN(ZONE, "flecs_eval_component_monitors", true);
         flecs_eval_component_monitors(world);
+        TracyCZoneEnd(ZONE);
     }
+    TracyCZoneEnd(ZONE);
 }
 
 int32_t ecs_delete_empty_tables(

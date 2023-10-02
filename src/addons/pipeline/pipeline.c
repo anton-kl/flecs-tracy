@@ -9,6 +9,8 @@
 #ifdef FLECS_PIPELINE
 #include "pipeline.h"
 
+#include <tracy/TracyC.h>
+
 static void flecs_pipeline_free(
     ecs_pipeline_state_t *p) 
 {
@@ -474,6 +476,7 @@ bool flecs_pipeline_update(
     ecs_pipeline_state_t *pq,
     bool start_of_frame)
 {
+    TracyCZoneN(ZONE, "flecs_pipeline_update", true);
     ecs_poly_assert(world, ecs_world_t);
     ecs_assert(!(world->flags & EcsWorldReadonly), ECS_INVALID_OPERATION, NULL);
 
@@ -487,8 +490,11 @@ bool flecs_pipeline_update(
     ecs_assert(pq != NULL, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(pq->query != NULL, ECS_INTERNAL_ERROR, NULL);
 
+    TracyCZoneN(ZONE2, "flecs_pipeline_build", true);
     bool rebuilt = flecs_pipeline_build(world, pq);
+    TracyCZoneEnd(ZONE2);
     if (start_of_frame) {
+        TracyCZoneN(ZONE, "start_of_frame_iterators", true);
         /* Initialize iterators */
         int32_t i, count = pq->iter_count;
         for (i = 0; i < count; i ++) {
@@ -497,10 +503,14 @@ bool flecs_pipeline_update(
         }
         pq->cur_op = ecs_vec_first_t(&pq->ops, ecs_pipeline_op_t);
         pq->cur_i = 0;
+        TracyCZoneEnd(ZONE);
     } else {
+        TracyCZoneN(ZONE, "flecs_pipeline_next_system", true);
         flecs_pipeline_next_system(pq);
+        TracyCZoneEnd(ZONE);
     }
 
+    TracyCZoneEnd(ZONE);
     return rebuilt;
 }
 
@@ -546,10 +556,19 @@ int32_t flecs_run_pipeline_ops(
     int32_t ran_since_merge = i - op->offset;
 
     for (; i < count; i++) {
+        TracyCZone(TZONE, true);
+        TracyCZoneValue(TZONE, i);
         ecs_entity_t system = systems[i];
         const EcsPoly* poly = ecs_get_pair(world, system, EcsPoly, EcsSystem);
         ecs_assert(poly != NULL, ECS_INTERNAL_ERROR, NULL);
         ecs_system_t* sys = ecs_poly(poly->poly, ecs_system_t);
+        
+        {
+            const char* systemName = ecs_get_name(world, sys->entity);
+            if (systemName) {
+                TracyCZoneName(TZONE, systemName, strlen(systemName));
+            }
+        }
 
         /* Keep track of the last frame for which the system has ran, so we
         * know from where to resume the schedule in case the schedule
@@ -569,6 +588,7 @@ int32_t flecs_run_pipeline_ops(
         world->info.systems_ran_frame++;
         ran_since_merge++;
 
+        TracyCZoneEnd(TZONE);
         if (ran_since_merge == op->count) {
             /* Merge */
             break;
@@ -609,6 +629,7 @@ void flecs_run_pipeline(
             flecs_pipeline_update(world, pq, false);
             continue;
         }
+        TracyCZone(TZONE, true);
 
         bool no_readonly = pq->cur_op->no_readonly;
         bool op_multi_threaded = multi_threaded && pq->cur_op->multi_threaded;
@@ -641,11 +662,15 @@ void flecs_run_pipeline(
         }
 
         if (op_multi_threaded) {
+            TracyCZoneN(ZONE_WAIT, "flecs_wait_for_sync", true);
             flecs_wait_for_sync(world);
+            TracyCZoneEnd(ZONE_WAIT);
         }
 
         if (!no_readonly) {
+            TracyCZoneN(ZONE_RE, "ecs_readonly_end", true);
             ecs_readonly_end(world);
+            TracyCZoneEnd(ZONE_RE);
         }
 
         /* Store the current state of the schedule after we synchronized the
@@ -653,6 +678,7 @@ void flecs_run_pipeline(
         pq->cur_i = i;
 
         flecs_pipeline_update(world, pq, false);
+        TracyCZoneEnd(TZONE);
     }
 }
 
